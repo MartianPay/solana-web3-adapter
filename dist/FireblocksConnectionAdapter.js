@@ -13,7 +13,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FireblocksConnectionAdapter = void 0;
-const fs_1 = __importDefault(require("fs"));
+const fs_1 = require("fs");
+const fs_2 = __importDefault(require("fs"));
 const web3_js_1 = require("@solana/web3.js");
 const fireblocks_sdk_1 = require("fireblocks-sdk");
 const helpers_1 = require("./helpers");
@@ -27,8 +28,8 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
     constructor(fireblocksClient, endpoint, config, commitment) {
         var _a, _b;
         super(endpoint, { commitment });
-        this.account = '';
-        this.txNote = '';
+        this.account = "";
+        this.txNote = "";
         this.externalTxId = null;
         this.getTxNote = () => {
             return this.txNote;
@@ -61,23 +62,22 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
         this.fireblocksApiClient = fireblocksClient;
         this.adapterConfig = config;
         this.devnet = (_a = config.devnet) !== null && _a !== void 0 ? _a : false;
-        this.assetId = this.devnet ? types_1.ASSET_IDS.SOLANA_DEVNET : types_1.ASSET_IDS.SOLANA_MAINNET;
+        this.assetId = this.devnet
+            ? types_1.ASSET_IDS.SOLANA_DEVNET
+            : types_1.ASSET_IDS.SOLANA_MAINNET;
         this.feeLevel = config.feeLevel || fireblocks_sdk_1.FeeLevel.MEDIUM;
         // Create logger with verbose output by default unless silent is true
         const isSilent = (_b = config.silent) !== null && _b !== void 0 ? _b : false;
         this.logger = {
-            debug: (...args) => !isSilent && console.log('[DEBUG]', ...args),
-            info: (...args) => !isSilent && console.log('[INFO]', ...args),
-            warn: (...args) => !isSilent && console.warn('[WARN]', ...args),
-            error: (...args) => console.error('[ERROR]', ...args),
+            debug: (...args) => !isSilent && console.log("[DEBUG]", ...args),
+            info: (...args) => !isSilent && console.log("[INFO]", ...args),
+            warn: (...args) => !isSilent && console.warn("[WARN]", ...args),
+            error: (...args) => console.error("[ERROR]", ...args),
         };
     }
     validateConfig(config) {
         if (!config.apiKey || !config.apiSecretPath || !config.vaultAccountId) {
-            throw new Error('Missing required configuration parameters');
-        }
-        if (!fs_1.default.existsSync(config.apiSecretPath)) {
-            throw new Error(`API secret file not found at path: ${config.apiSecretPath}`);
+            throw new Error("Missing required configuration parameters");
         }
     }
     /**
@@ -91,10 +91,10 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
     static create(endpoint, config, commitment) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!endpoint) {
-                throw new Error('Endpoint is required');
+                throw new Error("Endpoint is required");
             }
             try {
-                const fireblocksSecretKey = yield fs_1.default.promises.readFile(config.apiSecretPath, "utf-8");
+                const fireblocksSecretKey = FireblocksConnectionAdapter.parsePrivateKey(config.apiSecretPath);
                 const fireblocksClient = new fireblocks_sdk_1.FireblocksSDK(fireblocksSecretKey, config.apiKey, types_1.API_BASE_URLS.PRODUCTION);
                 const adapter = new FireblocksConnectionAdapter(fireblocksClient, endpoint, config, commitment);
                 yield adapter.setAccount(config.vaultAccountId, config.devnet);
@@ -105,6 +105,20 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
                 throw new Error(`Failed to initialize Fireblocks client: ${error.message}`);
             }
         });
+    }
+    static parsePrivateKey(apiSecretPath) {
+        if (!apiSecretPath) {
+            throw Error(`apiSecretPath is required in the fireblocks-web3-provider config`);
+        }
+        if (!apiSecretPath.trim().startsWith("-----BEGIN")) {
+            if (!fs_2.default.existsSync(apiSecretPath)) {
+                throw new Error(`API secret file not found at path: ${apiSecretPath}`);
+            }
+            return (0, fs_1.readFileSync)(apiSecretPath, "utf8");
+        }
+        else {
+            return apiSecretPath;
+        }
     }
     /**
      * Set transaction note
@@ -119,10 +133,10 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
             try {
                 const solWallet = yield this.fireblocksApiClient.getDepositAddresses(String(vaultAccount), devnet ? types_1.ASSET_IDS.SOLANA_DEVNET : types_1.ASSET_IDS.SOLANA_MAINNET);
                 if (!((_a = solWallet === null || solWallet === void 0 ? void 0 : solWallet[0]) === null || _a === void 0 ? void 0 : _a.address)) {
-                    throw new Error('No wallet address found');
+                    throw new Error("No wallet address found");
                 }
                 this.account = solWallet[0].address;
-                this.logger.debug('Account set successfully', { address: this.account });
+                this.logger.debug("Account set successfully", { address: this.account });
             }
             catch (error) {
                 throw new Error(`Failed to set account: ${error.message}`);
@@ -131,15 +145,17 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
     }
     signWithFireblocks(transaction) {
         return __awaiter(this, void 0, void 0, function* () {
-            this.logger.debug('Preparing to sign transaction with Fireblocks', {
+            this.logger.debug("Preparing to sign transaction with Fireblocks", {
                 feePayer: this.account,
-                feeLevel: this.feeLevel
+                feeLevel: this.feeLevel,
             });
             try {
                 if (!transaction) {
-                    throw new Error('Transaction is required');
+                    throw new Error("Transaction is required");
                 }
-                const serializedTx = transaction.serialize({ requireAllSignatures: false });
+                const serializedTx = transaction.serialize({
+                    requireAllSignatures: false,
+                });
                 const payload = {
                     assetId: this.assetId,
                     operation: "PROGRAM_CALL",
@@ -150,17 +166,17 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
                     },
                     note: this.txNote || "Created by Solana Web3 Adapter",
                     extraParameters: {
-                        programCallData: Buffer.from(serializedTx).toString("base64")
-                    }
+                        programCallData: Buffer.from(serializedTx).toString("base64"),
+                    },
                 };
                 if (this.externalTxId) {
                     payload.externalTxId = this.externalTxId;
                 }
-                this.logger.debug('Submitting transaction to Fireblocks', { payload });
+                this.logger.debug("Submitting transaction to Fireblocks", { payload });
                 const tx = yield this.createFireblocksTransaction(payload);
-                this.logger.info('Transaction submitted to Fireblocks', {
+                this.logger.info("Transaction submitted to Fireblocks", {
                     transactionId: tx.id,
-                    status: tx.status
+                    status: tx.status,
                 });
                 return tx;
             }
@@ -173,7 +189,7 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
         return __awaiter(this, void 0, void 0, function* () {
             return {
                 context: { slot: 0 },
-                value: { err: null }
+                value: { err: null },
             };
         });
     }
@@ -208,19 +224,21 @@ class FireblocksConnectionAdapter extends web3_js_1.Connection {
                     }
                 }
                 const fbTxResponse = yield this.signWithFireblocks(transaction);
-                this.logger.debug('Waiting for transaction confirmation');
-                const finalTxResponse = yield (0, helpers_1.waitForSignature)(fbTxResponse, this.fireblocksApiClient, this.adapterConfig.pollingInterval || 3000, this.adapterConfig.waitForFireblocksConfirmation === undefined ? true : this.adapterConfig.waitForFireblocksConfirmation, this.logger);
+                this.logger.debug("Waiting for transaction confirmation");
+                const finalTxResponse = yield (0, helpers_1.waitForSignature)(fbTxResponse, this.fireblocksApiClient, this.adapterConfig.pollingInterval || 3000, this.adapterConfig.waitForFireblocksConfirmation === undefined
+                    ? true
+                    : this.adapterConfig.waitForFireblocksConfirmation, this.logger);
                 if (!finalTxResponse.txHash) {
-                    throw new Error('Transaction hash not found in Fireblocks response');
+                    throw new Error("Transaction hash not found in Fireblocks response");
                 }
-                this.logger.info('Transaction confirmed', {
+                this.logger.info("Transaction confirmed", {
                     txHash: finalTxResponse.txHash,
-                    status: finalTxResponse.status
+                    status: finalTxResponse.status,
                 });
                 return finalTxResponse.txHash;
             }
             catch (error) {
-                this.logger.error('Transaction failed', error);
+                this.logger.error("Transaction failed", error);
                 throw new Error(`Failed to send transaction: ${error.message}`);
             }
         });

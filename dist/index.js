@@ -17,3 +17,4 @@ Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./FireblocksConnectionAdapter"), exports);
 __exportStar(require("./types"), exports);
 __exportStar(require("./logger"), exports);
+__exportStar(require("./FireblocksSolanaWalletAdapter"), exports);
